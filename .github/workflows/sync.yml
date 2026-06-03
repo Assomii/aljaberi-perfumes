@@ -2,83 +2,91 @@ name: Sync Google Sheet Data
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # كل 6 ساعات تلقائياً
-  workflow_dispatch:         # أو يدوياً بضغطة زر
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      
+      - uses: actions/checkout@v4
+
       - name: Fetch data from Google Sheet
         run: |
-          curl -L "https://docs.google.com/spreadsheets/d/e/2PACX-1vTBN15bOPrpbQu-s2-Cdf1Mx7m56cBN-NQCFDvZu16uq4tChgJC3zCw-UMC9jpdM32o-h2L_hk0ySIz/pub?gid=0&single=true&output=csv" -o data.csv
-          echo "Data fetched: $(wc -l < data.csv) rows"
-      
+          curl -L "https://docs.google.com/spreadsheets/d/e/2PACX-1vTBN15bOPrpbQu-s2-Cdf1Mx7m56cBN-NQCFDvZu16uq4tChgJC3zCw-UMC9jpdM32o-h2L_hk0ySIz/pub?gid=0&single=true&output=csv" \
+            -o data.csv \
+            --fail \
+            --silent \
+            --show-error
+          echo "Fetched $(wc -l < data.csv) rows"
+
       - name: Inject data into website
         run: |
           python3 << 'EOF'
           import csv, json, re
 
           rows = []
-          with open('data.csv', encoding='utf-8') as f:
+          with open('data.csv', encoding='utf-8-sig') as f:
               reader = csv.DictReader(f)
               for row in reader:
-                  # Clean and normalize
-                  name  = row.get('Product Name','').strip()
-                  brand = row.get('Brand Name','').strip()
+                  name  = (row.get('Product Name') or row.get('product_name') or '').strip()
+                  brand = (row.get('Brand Name')   or row.get('brand_name')   or '').strip()
                   if not name or not brand:
                       continue
-                  
+
                   def clean_price(v):
-                      import re
                       m = re.search(r'[\d.]+', str(v or ''))
                       return m.group() if m else ''
-                  
+
                   def clean_stock(v):
                       v = (v or '').lower()
                       if 'out' in v: return 'Out of Stock'
                       if 'low' in v: return 'Low Stock'
                       return 'In Stock'
-                  
+
                   rows.append({
                       'brand':    brand,
                       'name':     name,
-                      'size':     row.get('Size','').strip() or '100ml',
-                      'stock':    clean_stock(row.get('Availability Status','')),
-                      'price':    clean_price(row.get('Price','')),
-                      'category': row.get('Category','').strip(),
-                      'notes':    row.get('Notes','').strip(),
-                      'sku':      row.get('SKU','').strip(),
-                      'image':    row.get('Image','').strip(),
+                      'size':     (row.get('Size') or '').strip() or '100ml',
+                      'stock':    clean_stock(row.get('Availability Status') or row.get('stock') or ''),
+                      'price':    clean_price(row.get('Price') or row.get('price') or ''),
+                      'category': (row.get('Category') or '').strip(),
+                      'notes':    (row.get('Notes') or '').strip(),
+                      'sku':      (row.get('SKU') or '').strip(),
+                      'image':    (row.get('Image') or '').strip(),
                   })
 
           print(f"Processed {len(rows)} products")
 
-          # Read index.html
           with open('index.html', encoding='utf-8') as f:
               html = f.read()
 
-          # Replace SHEETS_URL with embedded data
-          data_js = f"const EMBEDDED_DATA = {json.dumps(rows, ensure_ascii=False)};"
-          
-          # Insert or replace embedded data
-          if 'const EMBEDDED_DATA' in html:
+          data_js = 'const EMBEDDED_DATA = ' + json.dumps(rows, ensure_ascii=False) + ';'
+
+          if 'const EMBEDDED_DATA = [];' in html:
+              html = html.replace('const EMBEDDED_DATA = [];', data_js)
+          elif 'const EMBEDDED_DATA' in html:
               html = re.sub(r'const EMBEDDED_DATA = \[.*?\];', data_js, html, flags=re.DOTALL)
           else:
               html = html.replace('const SHEETS_URL', data_js + '\nconst SHEETS_URL', 1)
-          
+
           with open('index.html', 'w', encoding='utf-8') as f:
               f.write(html)
-          
-          print("index.html updated successfully")
+
+          print(f"index.html updated with {len(rows)} products")
           EOF
-      
+
       - name: Commit and push
         run: |
           git config user.name "Auto Sync Bot"
           git config user.email "bot@aljaberi.com"
           git add index.html data.csv
-          git diff --staged --quiet || git commit -m "Sync: $(date '+%Y-%m-%d %H:%M') - $(wc -l < data.csv) rows"
-          git push
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Sync: $(date '+%Y-%m-%d %H:%M') UTC"
+            git push
+          fi
