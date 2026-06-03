@@ -817,7 +817,12 @@ highlight{background:rgba(200,132,122,0.2);color:var(--rose-dark);padding:0 2px;
 // ══════════════════════════════════════════
 // HARDCODED CONFIG — edit here then re-upload
 // ══════════════════════════════════════════
-const SHEETS_URL   = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSaLlKBugW-YHcu8wqHKTVsyKXE6DSAp7t43fN2Od0nI_EV1RhPe9RCW8YJzGmImccRaKtS0Cxlq2Sp/pub?output=csv';
+const SHEETS_URL   = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBN15bOPrpbQu-s2-Cdf1Mx7m56cBN-NQCFDvZu16uq4tChgJC3zCw-UMC9jpdM32o-h2L_hk0ySIz/pub?gid=0&single=true&output=csv';
+// ══════════════════════════════════════════
+// EMBEDDED DATA — injected by GitHub Action
+// This is filled automatically — do not edit manually
+// ══════════════════════════════════════════
+const EMBEDDED_DATA = []; // ← GitHub Action fills this automatically
 const WA_NUMBER    = '+233541100193';
 const ADMIN_PASSWORD = 'admin2025';
 
@@ -1745,13 +1750,21 @@ window.addEventListener('load',()=>{
   }
 
   async function tryLoad(){
-    // Update loading message with progress
     const grid = document.getElementById('pGrid');
+
+    // ✅ Priority 1: Use embedded data (injected by GitHub Action)
+    // This is the fastest and most reliable — works offline too
+    if(typeof EMBEDDED_DATA !== 'undefined' && EMBEDDED_DATA && EMBEDDED_DATA.length > 0){
+      DB = EMBEDDED_DATA;
+      buildAll();
+      return;
+    }
+
+    // ⏳ Priority 2: Fetch from Google Sheet (fallback)
     const msgs = [
       'Connecting to catalog...',
       'Trying alternative connection...',
       'Almost there...',
-      'One more attempt...',
     ];
     let msgIdx = 0;
     const msgTimer = setInterval(()=>{
@@ -1825,3 +1838,4 @@ window.addEventListener('load',()=>{
 </script>
 </body>
 </html>
+Update website with embedded data support
