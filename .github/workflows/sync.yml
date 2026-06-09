@@ -57,6 +57,7 @@ jobs:
                       'notes':    (row.get('Notes') or '').strip(),
                       'sku':      (row.get('SKU') or '').strip(),
                       'image':    (row.get('Image') or '').strip(),
+                      'carton': (row.get('Carton Size') or row.get('carton') or '').strip(),
                   })
 
           print(f"Processed {len(rows)} products")
