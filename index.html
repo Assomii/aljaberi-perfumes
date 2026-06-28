@@ -828,10 +828,6 @@ highlight{background:rgba(200,132,122,0.2);color:var(--rose-dark);padding:0 2px;
 // ══════════════════════════════════════════
 const SHEETS_URL     = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBN15bOPrpbQu-s2-Cdf1Mx7m56cBN-NQCFDvZu16uq4tChgJC3zCw-UMC9jpdM32o-h2L_hk0ySIz/pub?gid=0&single=true&output=csv';
 const CUSTOMERS_URL  = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBN15bOPrpbQu-s2-Cdf1Mx7m56cBN-NQCFDvZu16uq4tChgJC3zCw-UMC9jpdM32o-h2L_hk0ySIz/pub?gid=765614688&single=true&output=csv';
-// Hero slideshow sheet — أضف Tab ثالث في الشيت اسمه "Hero"
-// الأعمدة: Perfume Name | Image URL | Brand
-const HERO_SLIDES_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBN15bOPrpbQu-s2-Cdf1Mx7m56cBN-NQCFDvZu16uq4tChgJC3zCw-UMC9jpdM32o-h2L_hk0ySIz/pub?gid=1729657210&single=true&output=csv';
-let HERO_CUSTOM_SLIDES = []; // يُملأ من الشيت
 const WA_NUMBER      = '+233541100193';  // رقم خدمة العملاء (الافتراضي)
 const ADMIN_PASSWORD = 'admin2025';
 
@@ -840,93 +836,6 @@ const ADMIN_PASSWORD = 'admin2025';
 // Format: { phone: { name, agentPhone, agentName } }
 // ══════════════════════════════════════════
 let CUSTOMERS_DB = {};
-
-async function loadHeroSlides(){
-  try{
-    const proxies = [
-      `https://api.allorigins.win/get?url=${encodeURIComponent(HERO_SLIDES_URL+'&t='+Date.now())}`,
-      `https://corsproxy.io/?${encodeURIComponent(HERO_SLIDES_URL)}`,
-    ];
-    for(const proxy of proxies){
-      try{
-        const r = await fetch(proxy, {signal: AbortSignal.timeout(8000)});
-        if(!r.ok) continue;
-        const j = await r.json().catch(()=>null);
-        const text = j ? (j.contents||j.body||'') : await r.text();
-        if(!text || text.length < 10) continue;
-        parseHeroSlides(text);
-        return;
-      }catch(e){ continue; }
-    }
-  }catch(e){}
-}
-
-function parseHeroSlides(csv){
-  const lines = csv.split(/
-?
-/).filter(l=>l.trim());
-  if(lines.length < 2) return;
-  const hdrs = lines[0].split(',').map(h=>h.toLowerCase().trim().replace(/"/g,''));
-  const iName  = hdrs.findIndex(h=>h.includes('name')||h.includes('perfume'));
-  const iImage = hdrs.findIndex(h=>h.includes('image')||h.includes('img')||h.includes('url')||h.includes('photo'));
-  const iBrand = hdrs.findIndex(h=>h.includes('brand'));
-  if(iName < 0 && iImage < 0) return;
-  HERO_CUSTOM_SLIDES = [];
-  lines.slice(1).forEach(line=>{
-    const cols = line.split(',').map(c=>c.trim().replace(/^"|"$/g,''));
-    const name  = iName>=0  ? cols[iName]||''  : '';
-    const image = iImage>=0 ? cols[iImage]||'' : '';
-    const brand = iBrand>=0 ? cols[iBrand]||'' : '';
-    if(name || image) HERO_CUSTOM_SLIDES.push({name, image, brand});
-  });
-  if(HERO_CUSTOM_SLIDES.length > 0){
-    renderCustomHeroSlides();
-  }
-}
-
-function renderCustomHeroSlides(){
-  if(!HERO_CUSTOM_SLIDES.length) return;
-  const container = document.getElementById('heroSlides');
-  const dotsEl    = document.getElementById('heroDots');
-  if(!container) return;
-
-  // بناء شرائح من بيانات الشيت
-  const slides = HERO_CUSTOM_SLIDES.map((item, i) => {
-    const [c1,c2] = gc(item.brand||'Lattafa');
-    const imgHtml = item.image && item.image.trim()
-      ? `<img src="${item.image.trim()}" alt="${item.name}"
-            style="max-height:80%;max-width:60%;object-fit:contain;filter:drop-shadow(0 8px 32px rgba(0,0,0,0.4));transition:transform .4s ease"
-            onmouseover="this.style.transform='scale(1.05)'"
-            onmouseout="this.style.transform=''"
-            onerror="this.style.display='none';this.nextSibling.style.display='flex'">`
-        + `<div style="display:none;width:100%;height:100%;align-items:center;justify-content:center">${bottle(item.brand||'Lattafa',item.name,120,150)}</div>`
-      : `<div style="display:flex;align-items:center;justify-content:center">${bottle(item.brand||'Lattafa',item.name,120,150)}</div>`;
-
-    return `<div class="hero-slide${i===0?' active':''}" id="slide_${i}">
-      <div style="position:absolute;inset:0;background:linear-gradient(135deg,${c1}25,${c2}15,transparent)"></div>
-      <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px">
-        ${imgHtml}
-        <div style="text-align:center;z-index:2">
-          <div style="font-family:'Playfair Display',serif;font-size:clamp(14px,2vw,20px);color:white;font-weight:600">${item.name}</div>
-          ${item.brand?`<div style="font-size:10px;letter-spacing:3px;color:rgba(255,255,255,0.5);text-transform:uppercase;margin-top:4px">${item.brand}</div>`:''}
-        </div>
-      </div>
-      <div class="slide-brand-label">${item.brand||''}</div>
-    </div>`;
-  });
-
-  container.innerHTML = slides.join('');
-
-  // Dots
-  dotsEl.innerHTML = HERO_CUSTOM_SLIDES.map((_,i)=>
-    `<button class="hero-dot${i===0?' active':''}" onclick="goToSlide(${i})"></button>`
-  ).join('');
-
-  // إعادة تشغيل الـ slideshow
-  slidesData = HERO_CUSTOM_SLIDES;
-  slideIndex = 0;
-  startSlideshow();
-}
 
 async function loadCustomers(){
   try{
@@ -1291,7 +1200,8 @@ function onQuickSearch(){
   document.getElementById('fSearch').value = q;
   if(q.length>0){
     buildQuickDropdown(q);
-    // no auto-scroll while typing
+    // Scroll to products as user types
+    document.getElementById('products').scrollIntoView({behavior:'smooth', block:'start'});
   } else {
     closeQuickDropdown();
   }
@@ -1325,6 +1235,7 @@ function selectQuick(name, brand){
   document.getElementById('fBrand').value=brand;
   closeQuickDropdown();
   doFilter();
+  document.getElementById('products').scrollIntoView({behavior:'smooth'});
 }
 
 function clearQuickSearch(){
@@ -1537,6 +1448,7 @@ function onSearchKey(e){
     } else {
       doFilter();
       closeDropdown();
+      document.getElementById('products').scrollIntoView({behavior:'smooth'});
     }
   } else if(e.key==='Escape'){
     closeDropdown();
@@ -1936,8 +1848,7 @@ window.addEventListener('load',()=>{
       });
   }
   tryLoad(1);
-  loadCustomers();
-  loadHeroSlides(); // تحميل شرائح Hero من الشيت
+  loadCustomers(); // تحميل قاعدة بيانات العملاء
 });
 </script>
 </body>
